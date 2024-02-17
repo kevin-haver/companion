@@ -106,14 +106,14 @@ def run():
         helped_plants = [p for p in plants_help[plant] if p in selected_plants]
         helping_plants += [p for p in plants_helped_by[plant] if p not in selected_plants]
         if helped_plants:
-          st.write('-', plant, 'helps', ', '.join(helped_plants))
+          st.markdown('- ' + plant + ' helps ' + ', '.join(helped_plants), help='Test')
     
     # Which plants can be added to the garden for more positive effects?
     st.write('### Recommendations')
     st.write('These plants would be great to add:')    
     for helping_plant, cnt in Counter(helping_plants).most_common(5):
       helped_plants = [p for p in plants_help[helping_plant] if p in selected_plants]
-      st.write('-', helping_plant, 'helps', ', '.join(helped_plants))
+      st.markdown('- ' + helping_plant + ' helps ' + ', '.join(helped_plants), help='Test')
 
     # Get the best combinations 
     st.write('### Garden design')
