@@ -115,7 +115,7 @@ def run():
       helped_plants = [p for p in plants_help[helping_plant] if p in selected_plants]
       st.write('-', helping_plant, 'helps', ', '.join(helped_plants))
 
-    # Get the best combinations
+    # Get the best combinations 
     st.write('### Garden design')
     st.write('Plant these crops in the same garden beds:') 
     combinations_df = get_best_combinations(selected_plants)
