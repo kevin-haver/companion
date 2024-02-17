@@ -1,51 +1,56 @@
-# Copyright (c) Streamlit Inc. (2018-2022) Snowflake Inc. (2022)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import streamlit as st
 from streamlit.logger import get_logger
+import json
+from collections import Counter
 
 LOGGER = get_logger(__name__)
 
 
 def run():
     st.set_page_config(
-        page_title="Hello",
-        page_icon="👋",
+        page_title="Companion",
+        page_icon=":seedling:",
     )
 
-    st.write("# Welcome to Streamlit! 👋")
+    st.write("# Welcome to Companion :seedling:")
 
-    st.sidebar.success("Select a demo above.")
+    # Specify the file path for the plant data
+    file_path = 'plants.json'
 
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
-    )
+    # Read the JSON file
+    with open('plants.json') as f:
+        data = json.load(f)
 
+    # Create list of all plant names
+    plant_names = [p['plantName'] for p in data['plants']]
+
+    st.write('### Selection')
+    selected_plants = st.multiselect(
+    'Which plants would you like in your garden?',
+    plant_names, [])
+
+    # By which plants is each plant helped?
+    plants_helped_by = {plant['plantName']: [companion['plantName'] for companion in data['plants'] if companion['plantCode'] in plant['companionPlantCodes']] for plant in data['plants']}
+
+    # Which plant does each plant help?
+    plants_help = {companion['plantName']: [plant['plantName'] for plant in data['plants'] if companion['plantCode'] in plant['companionPlantCodes']] for companion in data['plants']}
+
+    # What are the positive effects between the current plants?
+    st.write('### Companions')
+    st.write('Plants that help eachother:')
+    helping_plants = []
+    for plant in selected_plants:
+        helped_plants = [p for p in plants_help[plant] if p in selected_plants]
+        helping_plants += [p for p in plants_helped_by[plant] if p not in selected_plants]
+        if helped_plants:
+          st.write('-', plant, 'helps', ', '.join(helped_plants))
+    
+    # Which plants can be added to the garden for more positive effects?
+    st.write('### Recommendations')
+    st.write('Great plants to add to your garden:')    
+    for helping_plant, cnt in Counter(helping_plants).most_common(10):
+      helped_plants = [p for p in plants_help[helping_plant] if p in selected_plants]
+      st.write('-', helping_plant, 'helps', ', '.join(helped_plants))
 
 if __name__ == "__main__":
     run()
