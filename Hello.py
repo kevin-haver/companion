@@ -110,14 +110,14 @@ def run():
     
     # Which plants can be added to the garden for more positive effects?
     st.write('### Recommendations')
-    st.write('These plants are great additios to your garden:')    
+    st.write('These plants would be great to add:')    
     for helping_plant, cnt in Counter(helping_plants).most_common(10):
       helped_plants = [p for p in plants_help[helping_plant] if p in selected_plants]
       st.write('-', helping_plant, 'helps', ', '.join(helped_plants))
 
     # Get the best combinations
-    st.write('### Combinations')
-    st.write('This is what your garden beds could look like:') 
+    st.write('### Garden design')
+    st.write('Plant these crops in the same garden beds:') 
     combinations_df = get_best_combinations(selected_plants)
 
     # Design garden beds
@@ -126,25 +126,22 @@ def run():
     # Iterate through each row of the garden_beds_df
     for index, row in garden_beds_df.iterrows():
         combination = row['Combination']
-        original_score = row['Score']
         original_effects = row['Effects']
         recommendation = row['Recommendation']
-        recommendation_combination = row['Recommendation_Combination']
-        recommendation_score = row['Recommendation_Score']
         recommendation_effects = row['Recommendation_Effects']
 
         # Print the positive effects for the original combination
         original_plants_string = ', '.join(combination)
-        st.write(f"Combine {original_plants_string} for {original_score} positive effects")
+        st.write(":seedling: **Garden bed " + str(index + 1) + ": " + original_plants_string + "**")
+        if recommendation:
+            st.write(":bulb: Recommendation: add " + recommendation)
         for effect in original_effects:
-            st.write("-", effect[0], "helps", effect[1])
+            st.markdown("- " + effect[0] + " helps " + effect[1], help='Test')
 
         # Print the positive effects for the recommendation
         if recommendation:
-            additional_score = recommendation_score
-            st.write(f"\nAdd {recommendation} for {additional_score} additional effects")
             for effect in recommendation_effects:
-                st.write("-", effect[0], "helps", effect[1])
+                st.markdown("- " + effect[0] + " helps " + effect[1], help='Test')
         st.write()
 
 if __name__ == "__main__":
