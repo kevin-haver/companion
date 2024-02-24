@@ -1,89 +1,84 @@
 import streamlit as st
-from streamlit.logger import get_logger
-import json
-from collections import Counter
-import itertools
+import csv
 import pandas as pd
+from itertools import combinations
 
-LOGGER = get_logger(__name__)
+def read_companion_effects(file_path):
+    """Reads companion effects from a CSV file."""
+    with open(file_path, newline='', encoding='utf-8') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # Skip header row
+        return {(row[0], row[1]): row[2] for row in reader}
 
-# Specify the file path for the plant data
-file_path = 'plants.json'
+def get_all_plants(companion_effects):
+    """Gets all unique plant names from companion effects."""
+    all_plants = set()
+    for pair in companion_effects.keys():
+        all_plants.update(pair)
+    return sorted(all_plants)
 
-# Read the JSON file
-with open('plants.json') as f:
-    data = json.load(f)
+def find_helper_plants(plant, companion_effects):
+    """Finds helper plants for a given plant."""
+    return [p1 for (p1, p2), effect in companion_effects.items() if p2 == plant]
 
-# Create list of all plant names
-plant_names = [p['plantName'] for p in data['plants']]
+def generate_combinations(preferred_plants, companion_effects, max_plants):
+    """Generates combinations of preferred plants and their helper plants."""
+    combinations_list = []
+    for size in range(1, max_plants):
+        for combo in combinations(preferred_plants, size):
+            combinations_list.append(combo)
+            helper_plants = []
+            for plant in combo:
+                helper_plants.extend(find_helper_plants(plant, companion_effects))
+            for helper_plant in helper_plants:
+                if helper_plant not in combo:
+                    new_combination = list(combo) + [helper_plant]
+                    if tuple(new_combination) not in combinations_list:
+                        combinations_list.append(tuple(new_combination))
+    return combinations_list
 
-# By which plants is each plant helped?
-plants_helped_by = {plant['plantName']: [companion['plantName'] for companion in data['plants'] if companion['plantCode'] in plant['companionPlantCodes']] for plant in data['plants']}
+def calculate_combination_score(combination, companion_effects):
+    """Calculates the score of a combination based on companion effects."""
+    pairs = [(plant1, plant2) for plant1 in combination for plant2 in combination if plant1 != plant2]
+    return sum(1 for pair in pairs if companion_effects.get(pair))
 
-# Which plant does each plant help?
-plants_help = {companion['plantName']: [plant['plantName'] for plant in data['plants'] if companion['plantCode'] in plant['companionPlantCodes']] for companion in data['plants']}
+def design_garden_beds(all_combinations, companion_effects, preferred_plants):
+    """Designs garden beds based on combinations of plants."""
+    df = pd.DataFrame([{'Combination': combo,
+             'Score': calculate_combination_score(combo, companion_effects),
+            'Plants': len(combo),
+            'Preferred_plants': sum(1 for plant in combo if plant in preferred_plants)} for combo in all_combinations]
+    )
 
+    df_sorted = df.sort_values(by=['Score', 'Preferred_plants', 'Plants'], ascending=[False, False, True])
 
-# Get all effects between plants
-def get_effects(plants):
-    effects = set()
-    for plant in plants:
-        helped_plants = plants_help.get(plant, set())
-        effects.update((plant, helped) for helped in helped_plants if helped in plants)
-    return effects
-
-# Generate recommendations by adding a helping plant to each combination
-def get_recommendations(combination):
-    recommendations = set()
-    for plant in combination:
-        for helping_plant in plants_helped_by.get(plant, set()):
-            if helping_plant not in combination:
-                recommendations.add(helping_plant)
-    return recommendations
-
-# Generate all possible combinations of 3 plants and rank them by highest score
-def get_best_combinations(plants):
-    combinations = {tuple(sorted(combo)) for combo in itertools.combinations(plants, 3)}
-    combinations_ranked = []
-    for combination in combinations:
-        effects = get_effects(combination)
-        score = len(effects)
-        recommendations = get_recommendations(combination)
-        for recommendation in recommendations:
-            recommendation_combinaton = combination + (recommendation,)
-            # Only keep effects where the recommendation is helping, not where it is helped
-            recommendation_effects = set([effect for effect in get_effects(recommendation_combinaton) if effect[1] != recommendation_combinaton[-1]])
-            recommendation_effects -= effects
-            recommendation_score = len(recommendation_effects)
-            combinations_ranked.append((combination, score, effects, recommendation, recommendation_combinaton, recommendation_score, recommendation_effects))
-    df = pd.DataFrame(combinations_ranked, columns=['Combination', 'Score', 'Effects', 'Recommendation', 'Recommendation_Combination', 'Recommendation_Score', 'Recommendation_Effects'])
-    return df.sort_values(by=['Score', 'Recommendation_Score'], ascending=[False, False])
-
-# Design garden beds by picking the best combinations, preventing duplicate plants
-def design_garden_beds(df):
     garden_beds = []
-    selected_plants = set()
-    while not df.empty:
-        max_score_row = df.iloc[0]
-        max_score_combination = max_score_row['Combination']
-        max_score_recommendation_combination = max_score_row['Recommendation_Combination']
-        max_score = max_score_row['Score'] + max_score_row['Recommendation_Score']
-        garden_beds.append((
-            max_score_combination,
-            max_score_row['Score'],
-            max_score_row['Effects'],
-            max_score_row['Recommendation'],
-            max_score_recommendation_combination,
-            max_score_row['Recommendation_Score'],
-            max_score_row['Recommendation_Effects'],
-            max_score
-        ))
-        selected_plants.update(max_score_combination)
-        selected_plants.update(max_score_recommendation_combination)
-        df = df[~df['Combination'].apply(lambda x: any(plant in selected_plants for plant in x))]
-        df = df[~df['Recommendation'].apply(lambda x: any(plant in selected_plants for plant in x))]
-    garden_beds_df = pd.DataFrame(garden_beds, columns=df.columns.tolist() + ['Combination', 'Score', 'Effects', 'Recommendation', 'Recommendation_Combination','Recommendation_Score', 'Recommendation_Effects', 'Total_Score'])
-    return garden_beds_df
+    for _, row in df_sorted.iterrows():
+        combination = row['Combination']
+        for bed in garden_beds:
+            if any(plant in bed for plant in combination):
+                break
+        else:
+            garden_beds.append(combination)
+
+    return garden_beds
+
+def print_garden_beds(garden_beds, companion_effects, preferred_plants):
+    """Prints the designed garden beds."""
+    for i, bed in enumerate(garden_beds, start=1):
+        with st.container(border=True):
+            st.write('**' + 'Garden bed ' + str(i) + '**')         
+            for plant, col in zip(bed, st.columns(len(bed))):
+                if plant in preferred_plants:
+                    col.button(plant, type='primary', help='Plant selected by you')
+                else:
+                    col.button(':bulb: ' + plant, help='Recommended plant that helps other plants in your selection')
+            expander = st.expander("See effects")
+        pairs = [(plant1, plant2) for plant1 in bed for plant2 in bed if plant1 != plant2]
+        for pair in pairs:
+            effect = companion_effects.get(pair)
+            if effect:
+                expander.write(f"- {pair[0]} helps {pair[1]} by {effect}")
 
 def run():
     st.set_page_config(
@@ -91,58 +86,43 @@ def run():
         page_icon=":seedling:",
     )
 
-    st.write("# Welcome to Companion :seedling:")
+    st.markdown("""
+            <style>
+                div[data-testid="column"] {
+                    width: fit-content !important;
+                    flex: unset;
+                }
+                div[data-testid="column"] * {
+                    width: fit-content !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
 
+    st.write("# Welcome to Companion :seedling:")
     st.write('### Selection')
-    selected_plants = st.multiselect(
+
+    with st.sidebar:
+        st.write('**Legend**')
+        st.button('Selected plant', type='primary', help='Plant selected by you')
+        st.button(':bulb: Recommended plant', help='Recommended plant that helps other plants in your selection')
+    
+        st.write('**Settings**')
+        max_plants = st.slider('Max plants per garden bed', 2, 5, 4, 1)
+
+    companion_effects = read_companion_effects('companion_effects.csv')
+    plant_names = get_all_plants(companion_effects)
+    
+    preferred_plants = st.multiselect(
     'Which plants would you like in your garden?',
     plant_names, [])
 
-    # What are the positive effects between the current plants?
-    st.write('### Companions')
-    st.write('These plants help eachother:')
-    helping_plants = []
-    for plant in selected_plants:
-        helped_plants = [p for p in plants_help[plant] if p in selected_plants]
-        helping_plants += [p for p in plants_helped_by[plant] if p not in selected_plants]
-        if helped_plants:
-          st.markdown('- ' + plant + ' helps ' + ', '.join(helped_plants), help='Test')
-    
-    # Which plants can be added to the garden for more positive effects?
-    st.write('### Recommendations')
-    st.write('These plants would be great to add:')    
-    for helping_plant, cnt in Counter(helping_plants).most_common(5):
-      helped_plants = [p for p in plants_help[helping_plant] if p in selected_plants]
-      st.markdown('- ' + helping_plant + ' helps ' + ', '.join(helped_plants), help='Test')
+    if preferred_plants:
+        st.write('### Garden design')
+        st.markdown('Plant these in the same garden bed for optimal beneficial effects') 
 
-    # Get the best combinations 
-    st.write('### Garden design')
-    st.write('Plant these crops in the same garden beds:') 
-    combinations_df = get_best_combinations(selected_plants)
-
-    # Design garden beds
-    garden_beds_df = design_garden_beds(combinations_df)
-
-    # Iterate through each row of the garden_beds_df
-    for index, row in garden_beds_df.iterrows():
-        combination = row['Combination']
-        original_effects = row['Effects']
-        recommendation = row['Recommendation']
-        recommendation_effects = row['Recommendation_Effects']
-
-        # Print the positive effects for the original combination
-        original_plants_string = ', '.join(combination)
-        st.write(":seedling: **Garden bed " + str(index + 1) + ": " + original_plants_string + "**")
-        if recommendation:
-            st.write(":bulb: Recommendation: add " + recommendation)
-        for effect in original_effects:
-            st.markdown("- " + effect[0] + " helps " + effect[1], help='Test')
-
-        # Print the positive effects for the recommendation
-        if recommendation:
-            for effect in recommendation_effects:
-                st.markdown("- " + effect[0] + " helps " + effect[1], help='Test')
-        st.write()
+        all_combinations = generate_combinations(preferred_plants, companion_effects, max_plants)
+        garden_beds = design_garden_beds(all_combinations, companion_effects, preferred_plants)
+        print_garden_beds(garden_beds, companion_effects, preferred_plants)
 
 if __name__ == "__main__":
     run()
