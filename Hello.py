@@ -3,7 +3,7 @@ import csv
 import pandas as pd
 from itertools import combinations
 
-def read_companion_effects(file_path):
+def read_companion_effects(file_path): 
     """Reads companion effects from a CSV file."""
     with open(file_path, newline='', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile)
