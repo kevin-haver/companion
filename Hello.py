@@ -21,20 +21,21 @@ def find_helper_plants(plant, companion_effects):
     """Finds helper plants for a given plant."""
     return [p1 for (p1, p2), effect in companion_effects.items() if p2 == plant]
 
-def generate_combinations(preferred_plants, companion_effects, max_plants):
+def generate_combinations(preferred_plants, companion_effects, max_plants, recommendations):
     """Generates combinations of preferred plants and their helper plants."""
     combinations_list = []
     for size in range(1, max_plants):
         for combo in combinations(preferred_plants, size):
             combinations_list.append(combo)
-            helper_plants = []
-            for plant in combo:
-                helper_plants.extend(find_helper_plants(plant, companion_effects))
-            for helper_plant in helper_plants:
-                if helper_plant not in combo:
-                    new_combination = list(combo) + [helper_plant]
-                    if tuple(new_combination) not in combinations_list:
-                        combinations_list.append(tuple(new_combination))
+            if recommendations:
+                helper_plants = []
+                for plant in combo:
+                    helper_plants.extend(find_helper_plants(plant, companion_effects))
+                for helper_plant in helper_plants:
+                    if helper_plant not in combo:
+                        new_combination = list(combo) + [helper_plant]
+                        if tuple(new_combination) not in combinations_list:
+                            combinations_list.append(tuple(new_combination))
     return combinations_list
 
 def calculate_combination_score(combination, companion_effects):
@@ -70,9 +71,9 @@ def print_garden_beds(garden_beds, companion_effects, preferred_plants):
             st.write('**' + 'Garden bed ' + str(i) + '**')         
             for plant, col in zip(bed, st.columns(len(bed))):
                 if plant in preferred_plants:
-                    col.button(plant, type='primary', help='Plant selected by you')
+                    col.button(plant, type='primary', help='Plant from your selection')
                 else:
-                    col.button(':bulb: ' + plant, help='Recommended plant that helps other plants in your selection')
+                    col.button(':bulb: ' + plant, help='Recommended plant that helps plants from your selection')
             expander = st.expander("See effects")
         pairs = [(plant1, plant2) for plant1 in bed for plant2 in bed if plant1 != plant2]
         for pair in pairs:
@@ -102,25 +103,22 @@ def run():
     st.write('### Selection')
 
     with st.sidebar:
-        st.write('**Legend**')
-        st.button('Selected plant', type='primary', help='Plant selected by you')
-        st.button(':bulb: Recommended plant', help='Recommended plant that helps other plants in your selection')
-    
         st.write('**Settings**')
         max_plants = st.slider('Max plants per garden bed', 2, 5, 4, 1)
+        recommendations = st.toggle('Recommendations :bulb:', True)
 
     companion_effects = read_companion_effects('companion_effects.csv')
     plant_names = get_all_plants(companion_effects)
     
     preferred_plants = st.multiselect(
-    'Which plants would you like in your garden?',
+    'Select up to twenty plants that you would like to have in your garden.',
     plant_names, [])
 
     if preferred_plants:
         st.write('### Garden design')
-        st.markdown('Plant these in the same garden bed for optimal beneficial effects') 
+        st.markdown('This is your ideal garden design, with combinations of plants that benefit each other.') 
 
-        all_combinations = generate_combinations(preferred_plants, companion_effects, max_plants)
+        all_combinations = generate_combinations(preferred_plants, companion_effects, max_plants, recommendations)
         garden_beds = design_garden_beds(all_combinations, companion_effects, preferred_plants)
         print_garden_beds(garden_beds, companion_effects, preferred_plants)
 
